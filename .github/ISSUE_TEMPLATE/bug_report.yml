@@ -1,56 +1,52 @@
 name: Bug Report
-description: Something isn't working as expected
+description: Report a VectorDBZ v2 runtime, source, or UI issue
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to file a bug report. Please fill out the details below to help us reproduce and fix the issue.
+        Please include enough non-secret context for us to reproduce the issue. Do not paste provider tokens, cookies, passwords, SSH details, or private database values.
 
   - type: input
     id: version
     attributes:
-      label: VectorDBZ Version
-      description: Found in the header of the app (hover over the version badge)
-      placeholder: "e.g. 0.0.17"
+      label: Version or commit
+      placeholder: "e.g. v2.0 or commit SHA"
     validations:
       required: true
 
   - type: dropdown
-    id: os
+    id: component
     attributes:
-      label: Operating System
+      label: Component
       options:
-        - Windows
-        - macOS (Intel)
-        - macOS (Apple Silicon)
-        - Linux
+        - Source collector
+        - Backfill
+        - Embedding worker
+        - Rerank worker
+        - Trend report
+        - Ask with citations API
+        - Source health
+        - Deployment
+        - UI reuse
+        - Other
     validations:
       required: true
 
   - type: dropdown
-    id: database
+    id: environment
     attributes:
-      label: Database Type
-      description: Which database were you connected to when the bug occurred?
+      label: Environment
       options:
-        - Qdrant
-        - Weaviate
-        - Milvus
-        - ChromaDB
-        - Pinecone
-        - pgvector (PostgreSQL)
-        - Elasticsearch
-        - RedisSearch
-        - Not database-specific
+        - Local Windows
+        - Local Linux
+        - US server
+        - HK server
+        - 153 server
+        - GitHub Actions
+        - Other
     validations:
       required: true
-
-  - type: input
-    id: db_version
-    attributes:
-      label: Database Version
-      placeholder: "e.g. Qdrant 1.9.0"
 
   - type: textarea
     id: description
@@ -63,45 +59,17 @@ body:
   - type: textarea
     id: steps
     attributes:
-      label: Steps to Reproduce
+      label: Reproduction steps
       placeholder: |
-        1. Connect to ...
-        2. Click on ...
-        3. See error ...
+        1. Run ...
+        2. Observe ...
+        3. Expected ...
     validations:
       required: true
 
   - type: textarea
-    id: expected
+    id: logs
     attributes:
-      label: Expected Behavior
-      description: What did you expect to happen?
-    validations:
-      required: true
-
-  - type: textarea
-    id: node_logs
-    attributes:
-      label: Node.js / Main Process Logs
-      description: |
-        Paste the contents of the app log file (main process / Node.js backend). Log files are at:
-        - Windows: `%APPDATA%\vectordbz\logs\main.log`
-        - macOS: `~/Library/Logs/vectordbz/main.log`
-        - Linux: `~/.config/vectordbz/logs/main.log`
-
-        You can also find the exact path in the app: open **Settings → About** and click **Open Log File**.
+      label: Relevant non-secret logs
+      description: Redact keys, passwords, cookies, host credentials, and private data.
       render: shell
-
-  - type: textarea
-    id: console_logs
-    attributes:
-      label: Browser Console Logs
-      description: |
-        Open DevTools with **F12**, go to the **Console** tab, reproduce the bug, then paste any errors or warnings here.
-      render: shell
-
-  - type: textarea
-    id: screenshots
-    attributes:
-      label: Screenshots
-      description: If applicable, add screenshots to help explain the problem. You can drag and drop images directly into this field.

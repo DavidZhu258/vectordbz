@@ -50,7 +50,7 @@ This keeps v2 independent while staying compatible with v1 UI. The backend owns 
 
 ### H1: Git and Release Baseline
 
-The current workspace is already a git repository with remote `https://github.com/vectordbz/vectordbz.git`. Do not reinitialize it. Create a dedicated release branch only after the v2 implementation scope is approved, then commit only scoped v2 files. Because the worktree currently contains many unrelated modifications and untracked directories, deployment must never use "whatever is in the workspace". Deployment must use a clean checkout or a tagged commit.
+The current clean release repository is `https://github.com/DavidZhu258/vectordbz`. The old workspace history was replaced by an explicit `v1.0` baseline, and v2 work must continue from reviewed commits or tags. Because the working folder can still contain unrelated local experiments and untracked directories, deployment must never use "whatever is in the workspace". Deployment must use a clean checkout, archive, or tagged commit.
 
 Acceptance:
 - `git status` reviewed before each commit.

@@ -1,111 +1,62 @@
-name: Build and Release
+name: V2 Source Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - "v2.*"
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            platform: win32
-            arch: x64
-          - os: macos-latest
-            platform: darwin
-            arch: x64
-          - os: macos-latest
-            platform: darwin
-            arch: arm64
-          - os: ubuntu-latest
-            platform: linux
-            arch: x64
-
-    runs-on: ${{ matrix.os }}
-
-    defaults:
-      run:
-        working-directory: app
+  release:
+    name: Package V2 Source
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          node-version: 24
-          cache: 'npm'
-          cache-dependency-path: app/package-lock.json
+          python-version: "3.11"
+          cache: "pip"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          python -m pip install -U pip
+          python -m pip install -r deploy/vectordbz_v2/requirements.txt pytest
 
-      - name: Build and Make (Windows)
-        if: matrix.platform == 'win32'
-        run: npm run make -- --arch=${{ matrix.arch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VITE_PUBLIC_POSTHOG_KEY: ${{ secrets.VITE_PUBLIC_POSTHOG_KEY }}
-          VITE_PUBLIC_POSTHOG_HOST: ${{ secrets.VITE_PUBLIC_POSTHOG_HOST }}
+      - name: Verify v2 harness
+        run: |
+          python -m pytest tests/vectordbz_v2 -q
+          python -m compileall vectordbz_v2
 
-      - name: Build and Make (macOS)
-        if: matrix.platform == 'darwin'
-        run: npm run make -- --arch=${{ matrix.arch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VITE_PUBLIC_POSTHOG_KEY: ${{ secrets.VITE_PUBLIC_POSTHOG_KEY }}
-          VITE_PUBLIC_POSTHOG_HOST: ${{ secrets.VITE_PUBLIC_POSTHOG_HOST }}
-          # For code signing (optional):
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Secret pattern scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          github_pat="github""_pat_"
+          ghp="gh""p_"
+          openrouter="sk-or-v1""-[0-9a-fA-F]{40,}"
+          jina="ji""na_[A-Za-z0-9_-]{30,}"
+          xai="xa""i-[A-Za-z0-9_-]{30,}"
+          patterns="${github_pat}|${ghp}|${openrouter}|${jina}|${xai}"
+          hits="$(git grep -I -l -E "$patterns" || true)"
+          if [ -n "$hits" ]; then
+            echo "Potential secret-bearing tracked files:"
+            echo "$hits"
+            exit 1
+          fi
 
-      - name: Build and Make (Linux)
-        if: matrix.platform == 'linux'
-        run: npm run make -- --arch=${{ matrix.arch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VITE_PUBLIC_POSTHOG_KEY: ${{ secrets.VITE_PUBLIC_POSTHOG_KEY }}
-          VITE_PUBLIC_POSTHOG_HOST: ${{ secrets.VITE_PUBLIC_POSTHOG_HOST }}
+      - name: Build source archive
+        run: |
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="vectordbz-${GITHUB_REF_NAME}/" -o "dist/vectordbz-${GITHUB_REF_NAME}.tar.gz" HEAD
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v5
-        with:
-          name: ${{ matrix.platform }}-${{ matrix.arch }}
-          path: app/out/make/**/*
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v5
-        with:
-          path: artifacts
-
-      - name: Generate update YAML files
-        run: node scripts/generate-update-files.js
-
-      - name: Create Release
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: artifacts/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: dist/*

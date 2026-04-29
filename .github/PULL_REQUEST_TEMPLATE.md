@@ -1,38 +1,32 @@
 ## Summary
 
-<!-- Briefly describe what this PR does and why. Link any related issues: Closes #123 -->
+<!-- Describe what changed and why. Link related issues when relevant. -->
 
-## Type of Change
+## Area
 
-- [ ] Bug fix
-- [ ] New feature / enhancement
-- [ ] New database integration
-- [ ] Documentation update
-- [ ] Refactor / cleanup
+- [ ] Source connector or source quality
+- [ ] Evidence contract or cited Q&A
+- [ ] Embedding, rerank, or report generation
+- [ ] Backfill, checkpointing, or long-task runner
+- [ ] Deployment or server profile
+- [ ] UI reuse
+- [ ] Documentation
 - [ ] Other:
 
-## Testing
+## Verification
 
-- [ ] I ran `npm test` and all tests pass
-- [ ] I ran `npm run lint` and there are no lint errors
-- [ ] I tested the change manually in the app
+- [ ] `python -m pytest tests\vectordbz_v2 -q`
+- [ ] `git diff --check`
+- [ ] Secret scan over tracked files
+- [ ] Manual smoke/health check if runtime behavior changed
 
-## New Database Integration Checklist
+## Safety
 
-<!-- Only fill this out if you're adding a new database. Delete otherwise. -->
+- [ ] No provider tokens, PATs, passwords, cookies, SSH material, or real `.env` files
+- [ ] No generated archives, caches, screenshots, vector stores, or `node_modules`
+- [ ] New LLM-facing behavior preserves deterministic evidence before narration
+- [ ] New server behavior is environment-configured, not hardcoded to a local machine
 
-- [ ] Added `'newdb'` to `DatabaseType` union in `app/src/types/index.ts`
-- [ ] Added any new connection fields to `ConnectionConfig`
-- [ ] Created `app/src/services/clients/newdb.ts` implementing `VectorDBClient`
-- [ ] Registered the client in `app/src/services/index.ts` (export + factory case)
-- [ ] Added `DatabaseOption` entry in `app/src/services/databases.ts`
-- [ ] Installed the SDK in `app/package.json`
-- [ ] Added mock seed script `mocks/seeds/newdb.js`
-- [ ] Added Docker service in `docker-compose.yml`
-- [ ] Added integration tests `app/src/services/__tests__/newdb.test.ts`
-- [ ] Updated `README.md` supported databases table
-- [ ] Updated `CHANGELOG.md`
+## Notes
 
-## Screenshots / Demo
-
-<!-- If relevant, add screenshots or a short GIF showing the change in action. -->
+<!-- Add deployment notes, screenshots, or follow-up work if useful. -->

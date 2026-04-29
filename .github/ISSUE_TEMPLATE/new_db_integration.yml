@@ -1,87 +1,59 @@
-name: New Database Integration
-description: Propose adding support for a new vector database
-labels: ["new-database", "enhancement"]
+name: Source Connector Proposal
+description: Propose a new evidence source for VectorDBZ v2
+labels: ["source", "enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for proposing a new database integration! Please fill out the details below.
-        
-        Before implementing, read the [Adding a Database guide](https://github.com/vectordbz/vectordbz/blob/main/docs/ADDING_A_DATABASE.md) to understand the process.
-        
-        Opening this issue first lets us confirm the integration fits the project and avoid duplicate work.
+        v2 source connectors must improve judgment, not just add volume. Please explain quality, freshness, evidence fields, and failure behavior.
 
   - type: input
-    id: db_name
+    id: source_name
     attributes:
-      label: Database Name
-      placeholder: "e.g. Vespa, Chroma v2, OpenSearch"
+      label: Source name
+      placeholder: "e.g. GitHub Trending, HF models, Reddit r/LocalLLaMA"
     validations:
       required: true
 
   - type: input
-    id: db_website
+    id: source_url
     attributes:
-      label: Database Website / Docs
+      label: Source URL or docs
       placeholder: "https://..."
     validations:
       required: true
 
-  - type: input
-    id: sdk_link
+  - type: textarea
+    id: value
     attributes:
-      label: Official JavaScript / TypeScript SDK
-      description: Link to the npm package or GitHub repo for the official client SDK
-      placeholder: "https://www.npmjs.com/package/..."
-    validations:
-      required: true
-
-  - type: dropdown
-    id: vector_types
-    attributes:
-      label: Supported Vector Types
-      description: Which vector types does this database support?
-      multiple: true
-      options:
-        - Dense vectors
-        - Sparse vectors
-        - Binary vectors
-        - Multi-vector (multiple named vectors per document)
-    validations:
-      required: true
-
-  - type: dropdown
-    id: search_types
-    attributes:
-      label: Supported Search Types
-      multiple: true
-      options:
-        - Dense (ANN) vector search
-        - Sparse vector search
-        - Lexical / BM25 / full-text search
-        - Hybrid search (vector + lexical)
-        - Metadata/payload filtering
+      label: Decision value
+      description: What daily decision or research question does this source improve?
     validations:
       required: true
 
   - type: textarea
-    id: use_case
+    id: evidence
     attributes:
-      label: Why should VectorDBZ support this database?
-      description: Who uses this database and what would they benefit from having a GUI?
+      label: Evidence fields
+      description: List the fields that should become citations or structured metadata.
     validations:
       required: true
 
-  - type: checkboxes
-    id: willing_to_implement
+  - type: dropdown
+    id: criticality
     attributes:
-      label: Implementation
+      label: Failure behavior
       options:
-        - label: I am willing to implement this integration myself (following the contributing guide)
-        - label: I would like someone else to implement this
+        - Optional source, degrade only
+        - Important source, warn if stale
+        - Critical source, block publish when unavailable
+    validations:
+      required: true
 
   - type: textarea
-    id: additional
+    id: quality
     attributes:
-      label: Additional Context
-      description: Any quirks, limitations, or special considerations for this database?
+      label: Quality and exclusion rules
+      description: How should low-signal, duplicate, stale, or promotional records be filtered?
+    validations:
+      required: true

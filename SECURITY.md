@@ -1,40 +1,48 @@
 # Security Policy
 
+VectorDBZ handles provider tokens, database credentials, server profiles, and
+source evidence. Treat repository hygiene as part of the product.
+
 ## Reporting a Vulnerability
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+Do not report security vulnerabilities through public GitHub issues. Use
+GitHub's private security advisory flow for this repository or contact the
+maintainer privately.
 
-If you discover a security vulnerability in VectorDBZ, please report it privately using [GitHub's private security advisory feature](https://github.com/vectordbz/vectordbz/security/advisories/new).
+Include:
 
-Alternatively, you can describe the issue in a private message to the maintainers via GitHub.
+- vulnerability description and impact,
+- steps to reproduce,
+- affected commit/tag,
+- whether any credential, token, cookie, or server address was exposed,
+- suggested mitigation if known.
 
-### What to Include
+## Secret Handling
 
-To help us triage and fix the issue quickly, please include:
+The repository must not contain:
 
-- A description of the vulnerability and its potential impact
-- Steps to reproduce the issue
-- VectorDBZ version affected
-- Any proof-of-concept code or screenshots (if applicable)
+- provider API keys,
+- GitHub PATs,
+- SSH passwords or private keys,
+- database passwords,
+- `.env` files with real values,
+- browser cookies or profile dumps,
+- local archives, screenshots, vector stores, or generated caches that may
+  include private data.
 
-### Response Timeline
+Use environment variables, server-local `/etc/vectordbz/v2.env`, GitHub Actions
+secrets, or a dedicated secret manager.
 
-- **Acknowledgement**: within 48 hours of receiving the report
-- **Status update**: within 7 days
-- **Fix release**: as soon as possible depending on severity and complexity
+## If a Secret Leaks
 
-We will keep you informed throughout the process and credit you in the security advisory (unless you prefer to remain anonymous).
-
-## Scope
-
-VectorDBZ is a desktop application. Security considerations include:
-
-- **Connection credentials** stored locally via `electron-store` (OS-level encrypted storage on supported platforms)
-- **Custom JavaScript embedding functions** executed in a sandboxed Node.js `vm` context
-- **Network connections** made from the desktop app to database endpoints specified by the user
-
-Out of scope: vulnerabilities in the databases VectorDBZ connects to (report those to the respective database projects).
+1. Revoke or rotate the secret immediately.
+2. Replace the runtime value in the relevant server or GitHub secret store.
+3. Search tracked files and commit history for other occurrences.
+4. Decide whether history cleanup is required after rotation. Rewriting history
+   is disruptive and should be coordinated.
+5. Enable or verify GitHub secret scanning and push protection.
 
 ## Supported Versions
 
-Security fixes are applied to the latest release. We recommend always using the most recent version.
+Security fixes are applied to the latest v2 release line. The v1 tag is a
+historical baseline and should not receive new secret-bearing operational work.

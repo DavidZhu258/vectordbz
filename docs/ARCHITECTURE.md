@@ -1,127 +1,117 @@
 # Architecture
 
-VectorDBZ is an Electron desktop app built with React and TypeScript. Every database integration is a self-contained TypeScript class — adding a new database means implementing one interface and registering it in a few places.
+VectorDBZ v2.0 is an evidence-first information aggregation harness. It is built
+to collect a few thousand records per day, keep only the useful structure, and
+serve cited daily intelligence through a small API that the existing v1 UI can
+reuse.
 
----
+## Design Goals
 
-## Process Model
+- Keep the system small enough to maintain on independent Hong Kong and US
+  servers.
+- Separate source collection from ranking, narration, and question answering.
+- Store evidence before generating prose.
+- Treat provider limits and source failures as normal operational states.
+- Keep secrets in environment files or server secret stores, never in git.
 
-Electron runs three processes that communicate over IPC:
+## Runtime Flow
 
-```
-┌─────────────────────────────────────────────────────┐
-│  Main Process (src/main.ts)                         │
-│  - Window lifecycle                                 │
-│  - IPC handlers                                     │
-│  - Database client calls via createClient()         │
-│  - Auto-updater                                     │
-│  - Embedding execution (sandboxed Node vm)          │
-└───────────────────┬─────────────────────────────────┘
-                    │ contextBridge (IPC)
-┌───────────────────▼─────────────────────────────────┐
-│  Preload (src/preload.ts)                           │
-│  - Exposes window.electronAPI to the renderer       │
-└───────────────────┬─────────────────────────────────┘
-                    │ window.electronAPI
-┌───────────────────▼─────────────────────────────────┐
-│  Renderer (src/renderer.tsx → src/App.tsx)          │
-│  - React 19 + Ant Design UI                         │
-│  - All user-facing components                       │
-└─────────────────────────────────────────────────────┘
+```text
+source registry
+  -> collectors
+  -> ClickHouse analytics_v2.articles
+  -> embedding worker
+  -> Qdrant articles_v2
+  -> rerank worker
+  -> report contract
+  -> LLM narrative
+  -> FastAPI /api/v2
 ```
 
----
+The LLM is deliberately late in the flow. It receives a compact, deterministic
+contract rather than raw feeds.
 
-## Source Structure
+## Storage
 
+ClickHouse database: `analytics_v2`
+
+| Table | Purpose |
+| --- | --- |
+| `articles` | Source-aware canonical records. |
+| `pipeline_state` | Health, checkpoints, table inventory, and watchdog state. |
+| `rerank_cache` | Idempotent rerank results by date, theme, source, and record. |
+| `trend_reports` | Deterministic report contract plus LLM narrative JSON. |
+
+Qdrant collection: `articles_v2`
+
+- 512-dimensional embeddings.
+- Payload indexes for `source_type`, `sub_source`, and `collected_at`.
+- Used for retrieval and Q&A evidence lookup.
+
+## Source Taxonomy
+
+The core source types are:
+
+- `github_repo`
+- `hf_model`
+- `hf_dataset`
+- `hf_space`
+- `reddit_subtrend`
+- `paper_candidate`
+- `job_market`
+- `news`
+
+This avoids the v1.0 failure where everything could become a generic news item.
+Reports can cap and compare each source family instead of letting one noisy
+source dominate the day.
+
+## Core Modules
+
+| Module | Responsibility |
+| --- | --- |
+| `config.py` | Environment-only runtime configuration. |
+| `db.py` | ClickHouse and Qdrant schema, reads, and writes. |
+| `source_registry.py` | Source definitions, criticality, and quality rules. |
+| `collectors.py` | Live and V1-backed source collectors. |
+| `source_backfill.py` | Historical day-by-day backfill into v2 rows. |
+| `embed_worker.py` | Batched embeddings with bounded failure handling. |
+| `rerank_worker.py` | Theme/source reranking and cache writes. |
+| `report_contract.py` | Deterministic compact report payload. |
+| `trend_analyzer.py` | LLM narration over the deterministic contract. |
+| `evidence_contract.py` | Cited Q&A payloads and answerability rules. |
+| `long_task_runner.py` | Resumable phase orchestration. |
+| `api.py` | FastAPI v2 health and ask endpoints. |
+
+## Failure Handling
+
+Source failures are isolated by source. Optional sources degrade a run. Critical
+sources block publication only when freshness or evidence coverage is not good
+enough. Long tasks write checkpoints so collection, embedding, rerank, and report
+generation can resume after provider throttling, server restarts, or process
+crashes.
+
+## Deployment Shape
+
+Each server runs the same directory layout:
+
+```text
+/opt/vectordbz-v2-harness
+/opt/vectordbz-v2-harness/.venv
+/etc/vectordbz/v2.env
+/var/lib/vectordbz_v2/checkpoints
 ```
-app/src/
-├── main.ts                     ← Electron main process
-├── preload.ts                  ← contextBridge / IPC surface
-├── renderer.tsx                ← React entry point
-├── App.tsx                     ← Application shell
-│
-├── types/
-│   └── index.ts                ← VectorDBClient interface + all shared types
-│
-├── services/
-│   ├── index.ts                ← createClient() factory
-│   ├── databases.ts            ← connection field config per DB (UI)
-│   ├── searchCapabilities.ts   ← per-DB feature flags (sparse, lexical, hybrid)
-│   ├── store.ts                ← electron-store: saved connections + settings
-│   ├── documentUtils.ts        ← document sorting helpers
-│   ├── embeddingService.ts     ← custom JS embedding execution
-│   ├── vectorUtils.ts          ← vector math utilities
-│   └── clients/                ← one file per database
-│       ├── qdrant.ts
-│       ├── weaviate.ts
-│       ├── milvus.ts
-│       ├── chromadb.ts
-│       ├── pgvector.ts
-│       ├── pinecone.ts
-│       ├── elasticsearch.ts
-│       └── redissearch.ts
-│
-└── components/
-    ├── ConnectionModal.tsx
-    ├── Sidebar.tsx
-    ├── MainContent.tsx
-    ├── CollectionTab.tsx
-    ├── DocumentsTab.tsx
-    ├── SearchTab.tsx
-    ├── VisualizeTab/
-    └── ...
-```
 
----
+The repository ships only templates. Real provider tokens, database passwords,
+SSH credentials, and server-specific addresses are written to server-local
+environment files.
 
-## Database Client Plugin Pattern
+## UI Strategy
 
-The core abstraction is the `VectorDBClient` interface in `app/src/types/index.ts`. Every supported database is a class that implements this interface:
+The v1 UI is reused as the operational surface. v2 adds only the screens needed
+for a compact intelligence workflow:
 
-```
-VectorDBClient (interface)
-    │
-    ├── QdrantClient
-    ├── WeaviateClient
-    ├── MilvusClient
-    ├── ChromaDBClient
-    ├── PgVectorClient
-    ├── PineconeClient
-    ├── ElasticsearchClient
-    └── RedisSearchClient
-```
-
-The `createClient(type, config)` factory in `app/src/services/index.ts` instantiates the right class based on the connection type. The UI never imports database clients directly — it calls through `window.electronAPI` which invokes `createClient` in the main process.
-
----
-
-## Key Types
-
-All shared types live in `app/src/types/index.ts`:
-
-| Type | Purpose |
-|------|---------|
-| `VectorDBClient` | The interface every DB client implements |
-| `DatabaseType` | Union of all supported DB identifiers |
-| `ConnectionConfig` | Connection parameters (host, port, apiKey, etc.) |
-| `Collection` | A collection/index/table in a database |
-| `Document` | A single record with primary key, vectors, and payload |
-| `DocumentVector` | Dense, sparse, or binary vector — discriminated union |
-| `CollectionSchema` | Describes primary key, payload fields, and vector fields |
-| `SearchCapabilities` | Per-DB feature flags (dense, sparse, lexical, hybrid, filters) |
-| `FilterQuery` | Portable filter format translated by each client |
-
----
-
-## Search Capabilities
-
-Each client declares what it supports via `getSearchCapabilities()`, which returns a `SearchCapabilities` object. The UI reads this to show/hide controls (e.g. the hybrid alpha slider, sparse vector input, lexical query field).
-
-`mergeWithDefault()` in `searchCapabilities.ts` fills any unset flags with safe defaults so new integrations only need to declare what they support — everything else is assumed off.
-
----
-
-## Adding a New Database
-
-See **[ADDING_A_DATABASE.md](ADDING_A_DATABASE.md)** for the complete step-by-step guide.
+- Source Health
+- Daily Signals
+- Evidence Drawer
+- Ask With Citations
+- Backfill and Runner Status

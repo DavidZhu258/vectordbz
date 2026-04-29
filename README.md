@@ -1,101 +1,138 @@
-<p align="center">
-  <img src="assets/icon.png" width="120" alt="VectorDBZ Logo" />
-</p>
+# VectorDBZ
 
-<h1 align="center">VectorDBZ</h1>
+VectorDBZ is a compact, evidence-first AI information aggregation platform.
+It collects thousands of daily records from code, model, paper, news, Reddit,
+and job-market sources, then reduces them into a small set of cited signals
+that can be reviewed, reported, and queried.
 
-<p align="center">
-  <strong>Open-source desktop client for vector databases</strong>
-</p>
+The project is intentionally smaller than a full research portal. The target is
+not another noisy feed. The target is a maintainable daily intelligence desk:
+fresh source health, strict ranking, reusable evidence, and answers that point
+back to the records they used.
 
-<p align="center">
-  <img src="assets/app.gif" alt="VectorDBZ Application" />
-</p>
+Repository: `https://github.com/DavidZhu258/vectordbz`
 
-<p align="center">
-  <a href="https://github.com/vectordbz/vectordbz/releases/latest"><img src="https://img.shields.io/github/v/release/vectordbz/vectordbz?label=download&color=blue" alt="Latest Release" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" /></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-brightgreen" alt="Contributions Welcome" /></a>
-</p>
+## Current Release Line
 
-VectorDBZ lets you connect to local or cloud vector database instances, explore collections, run vector and hybrid searches, and visualize embeddings in 2D/3D — all from a native desktop app, no infrastructure required.
+- `v1.0` is the clean baseline imported from the earlier workspace. It keeps the
+  historical UI/application code and a safe subset of v2 harness files.
+- `v2.0` is the evidence-first backend harness: source-aware ingestion,
+  ClickHouse/Qdrant storage, resumable long tasks, cited Q&A, deployment
+  profiles, and server-safe runtime configuration.
 
----
+## What v1.0 Got Wrong
 
-## Supported Databases
+The first workspace was useful for exploration, but it mixed too many concerns:
 
-| Database | Minimum Version |
-|:--------:|:---------------:|
-| **Qdrant** | `v1.7+` |
-| **Weaviate** | `v1.19+` |
-| **Milvus** | `v2.3+` |
-| **ChromaDB** | `v0.4+` |
-| **Pinecone** | Latest |
-| **pgvector (PostgreSQL)** | `PostgreSQL 11+` with `pgvector` extension |
-| **Elasticsearch** | `v8.x` |
-| **RedisSearch (Redis Stack)** | `v2.0+` |
+- Product code, local operations, deployment experiments, caches, generated
+  archives, screenshots, and external cloned repositories lived side by side.
+- Documentation still described a generic desktop vector database client, which
+  made the actual information platform unclear.
+- Some operational paths assumed local Windows folders or server-specific
+  secrets, making independent deployment fragile.
+- Source records could collapse into undifferentiated "news", so ranking could
+  overfit to volume instead of source quality.
+- Long-running work was hard to resume cleanly after a crash or provider limit.
+- LLM outputs were asked to do too much: summarize, rank, and explain without a
+  deterministic evidence contract in front of them.
 
----
+v1.0 is therefore kept as a tagged baseline, not as the architecture we want to
+grow.
 
-## Installation
+## What v2.0 Changes
 
-### Homebrew (macOS)
+v2.0 narrows the system around a few durable primitives:
 
-```bash
-brew tap vectordbz/vectordbz
-brew install --cask vectordbz
+- Source-aware article rows in ClickHouse `analytics_v2.articles`.
+- Vector retrieval in Qdrant `articles_v2`.
+- Explicit source taxonomy for GitHub, Hugging Face, Reddit, papers, jobs, and
+  news.
+- Deterministic report contracts before LLM narration.
+- Evidence payloads with source URL, source type, collected time, score, quote,
+  and inclusion reason.
+- Ask-with-citations API responses that can say "not enough evidence" instead
+  of guessing.
+- Health and checkpoint state in `analytics_v2.pipeline_state`.
+- Resumable `long_task_runner` phases for collection, embedding, rerank, and
+  trend report generation.
+- Environment-only secrets. Provider keys, database passwords, SSH credentials,
+  and PATs must never be committed.
+- Deployment profiles for independent server operation in US/HK/153-style
+  environments.
+
+## Architecture
+
+```text
+collectors
+  -> ClickHouse analytics_v2.articles
+  -> embedding worker
+  -> Qdrant articles_v2
+  -> rerank worker
+  -> deterministic report contract
+  -> LLM narrative and cited Q&A
+  -> FastAPI v2 API for the reused UI
 ```
 
-### Direct Download
+Core modules live in `vectordbz_v2/`. Tests live in `tests/vectordbz_v2/`.
+Deployment assets live in `deploy/vectordbz_v2/`; environment templates live in
+`profiles/`.
 
-**[Download the latest release →](https://github.com/vectordbz/vectordbz/releases/latest)**
+## Local Verification
 
-| Platform | Package |
-|----------|---------|
-| **Windows** | `.exe` installer (Windows 10+) |
-| **macOS** Intel | `darwin-x64` zip (macOS 10.15+) |
-| **macOS** Apple Silicon | `darwin-arm64` zip (macOS 10.15+) |
-| **Linux** | `.deb` or `.rpm` (Ubuntu 18.04+, Fedora 32+) |
-
-### macOS Note
-
-The app is not code-signed. On first launch, right-click → **Open** → click **Open** in the dialog.
-
-If you see **"VectorDBZ is damaged"**, run:
-
-```bash
-xattr -cr /Applications/VectorDBZ.app
+```powershell
+python -m pytest tests\vectordbz_v2 -q
+python -m vectordbz_v2.init_schema
+python -m vectordbz_v2.test_smoke
+python -m vectordbz_v2.collector_health --limit 1
+python -m vectordbz_v2.source_backfill --start 2026-04-01 --end 2026-04-28 --per-day-limit 20 --dry-run
 ```
 
----
+Run a bounded resumable pipeline:
 
-## Development
-
-See **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** for the full setup guide — prerequisites, running the app locally, seeding test data, and available scripts.
-
-Quick start:
-
-```bash
-git clone https://github.com/vectordbz/vectordbz.git
-cd vectordbz/app
-npm ci
-npm run start
+```powershell
+python -m vectordbz_v2.long_task_runner `
+  --collect-live `
+  --github-limit 2 `
+  --hf-limit-per-type 1 `
+  --embed-max 40 `
+  --embed-batch 4 `
+  --rerank-days 30 `
+  --checkpoint-path .codex/checkpoints/v2-long-task.json `
+  --resume
 ```
 
----
+## Deployment
 
-## Contributing
+The v2 folder must be deployable as a clean checkout or archive. A server should
+only need:
 
-Contributions are welcome — new database integrations, bug fixes, and feature improvements.
+- a clean copy of this repository,
+- `deploy/vectordbz_v2/requirements.txt`,
+- one profile copied from `profiles/*.env.example`,
+- server-only secrets written to `/etc/vectordbz/v2.env`,
+- ClickHouse and Qdrant reachable from that environment.
 
-- Read [CONTRIBUTING.md](CONTRIBUTING.md) to get started
-- Use the [step-by-step guide](docs/ADDING_A_DATABASE.md) to add a new database integration
-- Browse [open issues](https://github.com/vectordbz/vectordbz/issues)
-- [Open an issue](https://github.com/vectordbz/vectordbz/issues/new/choose) before starting large changes
+Never deploy from an unreviewed local working tree. Deploy a commit or tag that
+has passed tests and a secret scan.
 
----
+## GitHub Hygiene
 
-## Support
+Before every public push:
 
-- **Issues & Questions** — [GitHub Issues](https://github.com/vectordbz/vectordbz/issues)
-- **Release Notes** — [GitHub Releases](https://github.com/vectordbz/vectordbz/releases)
+- scan tracked files for provider keys, PATs, database passwords, SSH material,
+  `.env` files, archives, caches, and generated stores;
+- keep GitHub Actions permissions minimal, especially `GITHUB_TOKEN`;
+- avoid committing large generated artifacts such as `node_modules`, `.next`,
+  vector stores, screenshots, and backup archives;
+- rotate any secret that ever appears in a commit before considering history
+  cleanup;
+- enable GitHub secret scanning and push protection on the repository.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Development Guide](docs/DEVELOPMENT.md)
+- [v2 Phase Plan](docs/vectordbz_v2_phase_plan.md)
+- [v2 Harness Execution Plan](docs/vectordbz_v2_harness_execution_plan.md)
+- [v2 Minimal Product Harness](docs/vectordbz_v2_minimal_product_harness.md)
+- [Source Onboarding Guide](docs/ADDING_A_DATABASE.md)

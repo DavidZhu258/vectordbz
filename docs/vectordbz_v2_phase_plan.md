@@ -39,6 +39,17 @@ Live mini-run:
 
 ## v1.0 Failure Points Avoided
 
+v1.0 was useful as an exploratory workspace, but it made several mistakes that
+v2.0 must not repeat:
+
+- It mixed product code with local operations, caches, generated artifacts,
+  deployment experiments, and external cloned projects.
+- It let copied documentation describe a generic vector database desktop client
+  instead of the actual information aggregation platform.
+- It relied too much on local/server-specific assumptions, including paths and
+  runtime secrets that should live outside git.
+- It did not make evidence and answerability the center of the product.
+
 - No unbounded Chroma-dependent nightly path for v2 core tests.
 - No mixed "everything is news" reporting layer; canonical categories are code-level rules.
 - No unlimited source flood; TopN caps are enforced before LLM summarization.
