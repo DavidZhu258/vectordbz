@@ -1,0 +1,17 @@
+[Unit]
+Description=VectorDBZ V2 API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/vectordbz-v2-harness
+EnvironmentFile=/etc/vectordbz/v2.env
+ExecStart=/bin/bash -lc 'exec "${VDBZ_APP_DIR:-/opt/vectordbz-v2-harness}/.venv/bin/python" -m uvicorn vectordbz_v2.api:app --host 0.0.0.0 --port "${VDBZ_API_PORT:-4636}"'
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
