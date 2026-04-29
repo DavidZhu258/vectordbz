@@ -86,7 +86,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -U pip
-          python -m pip install -r deploy/vectordbz_v2/requirements.txt
+          python -m pip install -r deploy/vectordbz_v2/requirements.txt pytest
 
       - name: Wait for services
         run: |
