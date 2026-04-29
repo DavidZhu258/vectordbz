@@ -1,0 +1,52 @@
+name: Server Health
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-health
+  cancel-in-progress: true
+
+jobs:
+  public-v2-api:
+    name: Public V2 API Health
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check US API health
+        env:
+          VDBZ_US_HEALTH_URL: ${{ vars.VDBZ_US_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          url="${VDBZ_US_HEALTH_URL:-http://87.99.146.185:4640/api/v2/health}"
+          curl --fail --show-error --silent --max-time 15 "$url" | tee health.json
+          python - <<'PY'
+          import json
+
+          with open("health.json", "r", encoding="utf-8") as f:
+              payload = json.load(f)
+
+          if payload.get("service") != "vectordbz_v2":
+              raise SystemExit(f"unexpected service: {payload!r}")
+          if payload.get("state") != "ok":
+              raise SystemExit(f"unhealthy state: {payload!r}")
+
+          print("public v2 api healthy")
+          PY
+
+      - name: Write summary
+        if: always()
+        run: |
+          {
+            echo "## Server Health"
+            echo
+            echo "- US public API: ${{ job.status }}"
+            echo "- Override URL with repository variable VDBZ_US_HEALTH_URL when needed."
+            echo "- Internal/Tailscale-only servers need a self-hosted runner or server-side cron."
+          } >> "$GITHUB_STEP_SUMMARY"

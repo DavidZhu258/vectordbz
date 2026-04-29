@@ -12,6 +12,27 @@ jobs:
   release:
     name: Package V2 Source
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8
+        ports:
+          - 8123:8123
+          - 9000:9000
+      qdrant:
+        image: qdrant/qdrant:v1.12.6
+        ports:
+          - 6333:6333
+
+    env:
+      CLICKHOUSE_HOST: 127.0.0.1
+      CLICKHOUSE_HTTP_PORT: "8123"
+      CLICKHOUSE_PORT: "9000"
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      QDRANT_HOST: 127.0.0.1
+      QDRANT_PORT: "6333"
 
     steps:
       - name: Checkout
@@ -32,6 +53,42 @@ jobs:
         run: |
           python -m pytest tests/vectordbz_v2 -q
           python -m compileall vectordbz_v2
+
+      - name: Wait for services
+        run: |
+          python - <<'PY'
+          import time
+          import requests
+          import clickhouse_connect
+
+          deadline = time.time() + 90
+          last_error = None
+
+          while time.time() < deadline:
+              try:
+                  ch = clickhouse_connect.get_client(
+                      host="127.0.0.1",
+                      port=8123,
+                      database="default",
+                      username="default",
+                      password="",
+                  )
+                  ch.command("SELECT 1")
+                  resp = requests.get("http://127.0.0.1:6333/collections", timeout=3)
+                  resp.raise_for_status()
+                  print("services ready")
+                  raise SystemExit(0)
+              except Exception as exc:
+                  last_error = exc
+                  time.sleep(3)
+
+          raise SystemExit(f"services not ready: {last_error!r}")
+          PY
+
+      - name: Run integration smoke
+        run: |
+          python -m vectordbz_v2.init_schema
+          python -m vectordbz_v2.test_smoke
 
       - name: Secret pattern scan
         shell: bash
